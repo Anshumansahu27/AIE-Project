@@ -1,13 +1,15 @@
 import streamlit as st
 from dotenv import load_dotenv
 from langchain.text_splitter import CharacterTextSplitter
-from langchain.embeddings import OpenAIEmbeddings
-from langchain.vectorstores import FAISS
+from langchain.embeddings import OpenAIEmbeddings , HuggingFaceInstructEmbeddings
+from langchain.vectorstores import Chroma
 from langchain.chat_models import ChatOpenAI
 from langchain.memory import ConversationBufferMemory
 from langchain.chains import ConversationalRetrievalChain
 from CssTemplates import css, bot_template, user_template
 from langchain.document_loaders import YoutubeLoader
+from langchain.llms import HuggingFaceHub
+
 
 def get_pdf_text(url):
 
@@ -33,19 +35,21 @@ def get_text_chunks(data):
 
 
 def get_vectorstore(text_chunks):
-    embeddings = OpenAIEmbeddings()
-    vectorstore = FAISS.from_documents(text_chunks, embeddings)
-    return vectorstore
+    # embeddings = OpenAIEmbeddings()
+    embeddings = HuggingFaceInstructEmbeddings(model_name="hkunlp/instructor-xl")
+    db = Chroma.from_documents(text_chunks, embeddings, persist_directory="./chroma_db")
+    return db
 
 
-def get_conversation_chain(vectorstore):
-    llm = ChatOpenAI(temperature=0.3)
+def get_conversation_chain(db):
+    # llm = ChatOpenAI(temperature=0.2)
+    llm = HuggingFaceHub(repo_id="google/flan-t5-xxl", model_kwargs={"temperature":0.2, "max_length":512})
 
     memory = ConversationBufferMemory(
         memory_key='chat_history', return_messages=True)
     conversation_chain = ConversationalRetrievalChain.from_llm(
         llm=llm,
-        retriever=vectorstore.as_retriever(),
+        retriever=db.as_retriever(),
         memory=memory
     )
     return conversation_chain
